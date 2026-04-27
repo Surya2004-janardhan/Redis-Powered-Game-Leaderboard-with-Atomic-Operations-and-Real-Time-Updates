@@ -67,6 +67,43 @@ return {'SUCCESS', newScore}
 const app = express();
 app.use(express.json());
 
+type RateLimitWindow = {
+  count: number;
+  windowStart: number;
+};
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 120;
+const rateLimitStore = new Map<string, RateLimitWindow>();
+
+function getClientIp(req: Request): string {
+  const ipHeader = req.headers["x-forwarded-for"];
+  if (typeof ipHeader === "string" && ipHeader.length > 0) {
+    return ipHeader.split(",")[0].trim();
+  }
+  return req.ip || "unknown";
+}
+
+function rateLimitMiddleware(req: Request, res: Response, next: () => void): void {
+  const clientId = getClientIp(req);
+  const now = Date.now();
+  const existing = rateLimitStore.get(clientId);
+
+  if (!existing || now - existing.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitStore.set(clientId, { count: 1, windowStart: now });
+    next();
+    return;
+  }
+
+  existing.count += 1;
+  if (existing.count > RATE_LIMIT_MAX_REQUESTS) {
+    res.status(429).json({ error: "rate limit exceeded" });
+    return;
+  }
+
+  next();
+}
+
 const redisClient = createClient({
   url: REDIS_URL,
   socket: {
@@ -75,6 +112,15 @@ const redisClient = createClient({
 });
 const redisSubscriber = redisClient.duplicate();
 const sseClients = new Set<Response>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [clientId, window] of rateLimitStore.entries()) {
+    if (now - window.windowStart >= RATE_LIMIT_WINDOW_MS) {
+      rateLimitStore.delete(clientId);
+    }
+  }
+}, RATE_LIMIT_WINDOW_MS).unref();
 
 redisClient.on("error", (error) => console.error("Redis client error:", error));
 redisSubscriber.on("error", (error) => console.error("Redis subscriber error:", error));
@@ -107,6 +153,8 @@ app.get("/health", async (_req: Request, res: Response) => {
     res.status(503).json({ status: "unhealthy" });
   }
 });
+
+app.use("/api", rateLimitMiddleware);
 
 app.post("/api/sessions", async (req: Request, res: Response) => {
   const { userId, ipAddress, deviceType } = req.body as {
