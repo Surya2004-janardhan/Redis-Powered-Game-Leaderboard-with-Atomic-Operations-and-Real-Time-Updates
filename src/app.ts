@@ -6,8 +6,10 @@ import { v4 as uuidv4 } from "uuid";
 const API_PORT = Number(process.env.API_PORT ?? "3000");
 const REDIS_URL = process.env.REDIS_URL ?? "redis://redis:6379";
 const SESSION_TTL_SECONDS = 1800;
+const DEFAULT_SUBMISSION_POINTS = 10;
 const GLOBAL_LEADERBOARD_KEY = "leaderboard:global";
 const GAME_EVENTS_CHANNEL = "game-events";
+const SSE_KEEPALIVE_INTERVAL_MS = 20_000;
 
 const invalidateAndCreateSessionLua = `
 local userSetKey = KEYS[1]
@@ -67,6 +69,15 @@ return {'SUCCESS', newScore}
 
 const app = express();
 app.use(express.json());
+app.use(
+  rateLimit({
+    windowMs: 60_000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "rate limit exceeded" }
+  })
+);
 
 const redisClient = createClient({
   url: REDIS_URL,
@@ -108,17 +119,6 @@ app.get("/health", async (_req: Request, res: Response) => {
     res.status(503).json({ status: "unhealthy" });
   }
 });
-
-app.use(
-  "/api",
-  rateLimit({
-    windowMs: 60_000,
-    max: 120,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "rate limit exceeded" }
-  })
-);
 
 app.post("/api/sessions", async (req: Request, res: Response) => {
   const { userId, ipAddress, deviceType } = req.body as {
@@ -248,7 +248,7 @@ app.post("/api/game/submit", async (req: Request, res: Response) => {
   const submissionsKey = `submissions:${gameId}:${roundId}`;
   const luaResult = (await redisClient.eval(submitAnswerLua, {
     keys: [roundKey, submissionsKey, GLOBAL_LEADERBOARD_KEY],
-    arguments: [playerId, answer, String(Date.now()), "10"]
+    arguments: [playerId, answer, String(Date.now()), String(DEFAULT_SUBMISSION_POINTS)]
   })) as [string, string];
 
   if (luaResult[0] === "ERROR") {
@@ -279,7 +279,7 @@ app.get("/api/events", (req: Request, res: Response) => {
 
   const keepAliveTimer = setInterval(() => {
     res.write(": keepalive\n\n");
-  }, 20000);
+  }, SSE_KEEPALIVE_INTERVAL_MS);
 
   req.on("close", () => {
     clearInterval(keepAliveTimer);
