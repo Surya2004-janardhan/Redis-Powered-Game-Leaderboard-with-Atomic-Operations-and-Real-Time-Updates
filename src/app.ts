@@ -67,7 +67,12 @@ return {'SUCCESS', newScore}
 const app = express();
 app.use(express.json());
 
-const redisClient = createClient({ url: REDIS_URL });
+const redisClient = createClient({
+  url: REDIS_URL,
+  socket: {
+    family: 4
+  }
+});
 const redisSubscriber = redisClient.duplicate();
 const sseClients = new Set<Response>();
 
@@ -166,7 +171,7 @@ app.get("/api/leaderboard/top/:count", async (req: Request, res: Response) => {
 });
 
 app.get("/api/leaderboard/player/:playerId", async (req: Request, res: Response) => {
-  const { playerId } = req.params;
+  const playerId = String(req.params.playerId);
   const rankZeroBased = await redisClient.zRevRank(GLOBAL_LEADERBOARD_KEY, playerId);
   const score = await redisClient.zScore(GLOBAL_LEADERBOARD_KEY, playerId);
   if (rankZeroBased === null || score === null) {
@@ -272,7 +277,7 @@ app.get("/api/events", (req: Request, res: Response) => {
 });
 
 app.get("/api/admin/sessions/user/:userId", async (req: Request, res: Response) => {
-  const { userId } = req.params;
+  const userId = String(req.params.userId);
   const sessionIds = await redisClient.sMembers(`user_sessions:${userId}`);
 
   const sessions = await Promise.all(
@@ -294,7 +299,7 @@ app.get("/api/admin/sessions/user/:userId", async (req: Request, res: Response) 
 });
 
 app.delete("/api/admin/sessions/:sessionId", async (req: Request, res: Response) => {
-  const { sessionId } = req.params;
+  const sessionId = String(req.params.sessionId);
   const sessionKey = `session:${sessionId}`;
   const userId = await redisClient.hGet(sessionKey, "userId");
 
