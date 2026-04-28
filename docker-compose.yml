@@ -26,7 +26,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:${API_PORT:-3000}/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:${API_PORT:-3000}/health || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 24

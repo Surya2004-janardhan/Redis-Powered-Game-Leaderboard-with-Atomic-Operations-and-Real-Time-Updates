@@ -43,8 +43,8 @@ Observed:
 Default behavior favors compact encoding for small zsets:
 
 ```bash
-CONFIG SET zset-max-listpack-entries 128
-CONFIG SET zset-max-listpack-value 64
+CONFIG SET zset-max-ziplist-entries 128
+CONFIG SET zset-max-ziplist-value 64
 DEL leaderboard:small
 ZADD leaderboard:small 10 p1 20 p2 30 p3
 OBJECT ENCODING leaderboard:small
@@ -54,7 +54,7 @@ MEMORY USAGE leaderboard:small
 Forced skiplist for the same small dataset:
 
 ```bash
-CONFIG SET zset-max-listpack-entries 1
+CONFIG SET zset-max-ziplist-entries 1
 DEL leaderboard:small
 ZADD leaderboard:small 10 p1 20 p2 30 p3
 OBJECT ENCODING leaderboard:small
@@ -63,11 +63,11 @@ MEMORY USAGE leaderboard:small
 
 Observed comparison:
 
-- Compact/listpack encoding uses less memory for small sorted sets.
+- Compact/ziplist encoding uses less memory for small sorted sets.
 - Forced skiplist encoding increases memory overhead but is optimized for larger/complex operations.
 - For large leaderboards (100k+), skiplist is expected and appropriate.
 
 ## 4) Notes
 
-- Redis 7 uses `listpack` terminology (older docs mention ziplist).
+- Redis 7 internally maps legacy `ziplist` configs to `listpack`, but the legacy config works as expected for forced configurations.
 - The project leaderboard (`leaderboard:global`) naturally crosses compact thresholds and is stored as skiplist for high-scale ranking operations.
