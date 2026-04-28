@@ -2,16 +2,13 @@ import { after, before } from "node:test";
 import { redisClient, redisSubscriber, initRedis } from "../src/redis/client";
 
 before(async () => {
-  // Try to connect to localhost default
+  // Connect and clean database beforehand so state doesn't persist across runs
   await initRedis(() => {});
+  await redisClient.flushDb();
 });
 
 after(async () => {
-  // Cleanup test data
-  const keys = await redisClient.keys("*");
-  if (keys.length > 0) {
-    await redisClient.del(keys);
-  }
+  // Gracefully quit
   await redisClient.quit();
   await redisSubscriber.quit();
 });

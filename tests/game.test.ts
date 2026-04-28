@@ -19,6 +19,10 @@ test("Game API", async (t) => {
   });
 
   await t.test("POST /api/game/submit avoids duplicates", async () => {
+    await redisClient.hSet("game_round:g1:r1", "endTime", String(Date.now() + 10000));
+    // simulate a previous answer
+    await redisClient.sAdd("submissions:g1:r1", "p-100");
+
     const res = await request(app)
       .post("/api/game/submit")
       .send({ gameId: "g1", roundId: "r1", playerId: "p-100", answer: "A" });

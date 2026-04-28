@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "cross-env REDIS_URL=redis://localhost:6379 TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\"}' node --require ts-node/register --test tests/**/*.test.ts",
+    "test": "cross-env REDIS_URL=redis://localhost:6379 TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\"}' node --require ts-node/register --test --test-concurrency=1 tests/**/*.test.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts"
